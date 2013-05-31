@@ -2,11 +2,14 @@
 <use name="FWCore/Framework"/>
 <use name="FWCore/PluginManager"/>
 <use name="FWCore/ParameterSet"/>
-<use   name="DataFormats/Math"/>
-<use   name="DataFormats/Common"/>
-<use   name="DataFormats/EgammaReco"/>
-<use   name="DataFormats/VertexReco"/>
-<use   name="DataFormats/MuonReco"/>
-<use   name="RecoEgamma/EgammaTools"/>
+<use name="DataFormats/Math"/>
+<use name="DataFormats/Common"/>
+<use name="DataFormats/EgammaReco"/>
+<use name="DataFormats/VertexReco"/>
+<use name="DataFormats/MuonReco"/>
+<use name="DataFormats/TrackReco"/>
+<use name="RecoEgamma/EgammaTools"/>
+<use name="TrackingTools/TransientTrack"/>
+<use name="TrackingTools/Records"/>
 
 <flags EDM_PLUGIN="1"/>

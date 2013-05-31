@@ -11,6 +11,7 @@ class MyHiggsEvent : public TObject {
   UInt_t _run;
   UInt_t _ls;
   UInt_t _evt;
+  UInt_t _type;
 
 
   TLorentzVector _lep1_p4;
@@ -26,6 +27,7 @@ class MyHiggsEvent : public TObject {
   UInt_t run() const;
   UInt_t ls()  const;
   UInt_t evt() const;
+  UInt_t type() const;
 
   TLorentzVector lep1() const;
   TLorentzVector lep2() const;
@@ -36,11 +38,13 @@ class MyHiggsEvent : public TObject {
   void SetRun(UInt_t r);
   void SetLs(UInt_t l);
   void SetEvt(UInt_t e);
+  void SetType(UInt_t t);
 
   void SetLep1(TLorentzVector p4);
   void SetLep2(TLorentzVector p4);
   void SetLep3(TLorentzVector p4);
   void SetLep4(TLorentzVector p4);
+
   ClassDef(MyHiggsEvent, 1);
 };
 

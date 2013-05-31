@@ -15,6 +15,9 @@ UInt_t MyHiggsEvent::ls()  const{
 UInt_t MyHiggsEvent::evt() const{
   return _evt;
 }
+UInt_t MyHiggsEvent::type() const{
+  return _type;
+}
 
 TLorentzVector MyHiggsEvent::lep1() const{
   return _lep1_p4;
@@ -39,6 +42,10 @@ void MyHiggsEvent::SetLs(UInt_t l){
 void MyHiggsEvent::SetEvt(UInt_t e){
   _evt = e;
 }
+void MyHiggsEvent::SetType(UInt_t t){
+  _type = t;
+}
+
 void MyHiggsEvent::SetLep1(TLorentzVector p4){
   _lep1_p4 = p4;
 }

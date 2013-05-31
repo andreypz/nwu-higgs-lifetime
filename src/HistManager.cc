@@ -37,11 +37,11 @@ void HistManager::fill1DHist(float x, std::string name, std::string title,
   it = the1DMap.find(name);
   //std::cout<<"fill 1d  "<<name<<std::endl;
   if (it == the1DMap.end()){
-    theFile->ls();
+    //theFile->ls();
     //std::cout<<"  ** Before the cd into a directory"<<std::endl;
     theFile->cd(folder.c_str());
     //std::cout<<"  ****** After the cd into a directory"<<std::endl;
-    theFile->ls();
+    //theFile->ls();
     the1DMap[name] = new TH1F(name.c_str(),title.c_str(),bins,xmin,xmax);
     theFile->cd();
   }

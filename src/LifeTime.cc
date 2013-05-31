@@ -13,7 +13,7 @@
 //
 // Original Author:  Andrey Pozdnyakov
 //         Created:  Thu Apr 11 14:54:41 CDT 2013
-// $Id$
+// $Id: LifeTime.cc,v 1.1 2013/05/20 20:27:39 andrey Exp $
 //
 //
 
@@ -31,6 +31,8 @@
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 
+#include "MagneticField/Engine/interface/MagneticField.h"
+
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "DataFormats/MuonReco/interface/Muon.h"
 #include "DataFormats/MuonReco/interface/MuonFwd.h"
@@ -38,6 +40,16 @@
 
 #include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
 #include "RecoEgamma/EgammaTools/interface/ConversionTools.h"
+#include "DataFormats/Math/interface/deltaR.h"
+
+#include "DataFormats/TrackReco/interface/TrackBase.h"
+#include "DataFormats/TrackReco/interface/TrackExtra.h"
+#include "DataFormats/TrackReco/interface/TrackExtraFwd.h" 
+#include "TrackingTools/TransientTrack/interface/TrackTransientTrack.h"
+#include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
+#include "TrackingTools/Records/interface/TransientTrackRecord.h"
+
+#include "Geometry/Records/interface/GlobalTrackingGeometryRecord.h"
 
 #include "MyHiggsEvent.h"
 #include "HistManager.h"
@@ -112,7 +124,6 @@ void LifeTime::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    
    //cout<<"event"<<endl;
 
-
    if(iEvent.isRealData()) { 
 
      bool isDuplic=false;
@@ -143,23 +154,146 @@ void LifeTime::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    //hists->fill1DHist(1,"run","run", 3,0,3,  1, "");
 
 
-   Handle<vector<reco::Muon> > muons;
-   iEvent.getByLabel("muons", muons);
+   //Loop over all events from a list and fing which one we're dealing with
 
-   //cout<<"we are here"<<endl;
+   //Int_t type = 0;
+   Bool_t notFound = kTRUE;
+   MyHiggsEvent e;
+   for (vector<MyHiggsEvent>::iterator it = HiggsEvents.begin() ; it != HiggsEvents.end(); ++it)
+     {
+       if (iEvent.id().run() == it->run() && iEvent.id().event() == it->evt())
+         {
+           cout<<"This event is in our event file and matched with AOD sample:\n \t\trun = "<<it->run()<<"   evt = "<<it->evt()<<endl;
+           notFound = kFALSE;
+           e = (*it);
+           break;
+         }
+     }
+
+   if (notFound)
+     cout<<" DANGER  DANGER. THE EVENT is Not found in the list!!! "<<endl;
+
+
+   if (e.type()!=1) //Only doinf 4mu events for now!
+     return;
+
+   vector<TLorentzVector> leptons;
+
+   leptons.push_back(e.lep1());
+   leptons.push_back(e.lep2());
+   leptons.push_back(e.lep3());
+   leptons.push_back(e.lep4());
+   cout<<"OUR EVENT IS::  run = "<<e.run()<<"   evt = "<<e.evt()<<endl;
+   cout<<"Type = "<<e.type()<<endl;
+   cout<<"\tl1pt = "<<e.lep1().Pt()<<"  l1eta = "<<e.lep1().Eta()<<"  l1phi = "<<e.lep1().Phi()<<endl;
+   cout<<"\tl2pt = "<<e.lep2().Pt()<<"  l2eta = "<<e.lep2().Eta()<<"  l2phi = "<<e.lep2().Phi()<<endl;
+   cout<<"\tl3pt = "<<e.lep3().Pt()<<"  l3eta = "<<e.lep3().Eta()<<"  l3phi = "<<e.lep3().Phi()<<endl;
+   cout<<"\tl4pt = "<<e.lep4().Pt()<<"  l4eta = "<<e.lep4().Eta()<<"  l4phi = "<<e.lep4().Phi()<<endl;
+
+   //cout<<"Leptons!  l1pt = "<<leptons[0].Pt()<<endl;
+
+
+   //Here we will store 4 tracks of the particles from H->4l decay; both from muons and electrons  
+   reco::TrackCollection  higgsTracks;  
 
    UInt_t nMuons7=0;
-   for (vector<reco::Muon>::const_iterator iMuon = muons->begin(); iMuon != muons->end(); ++iMuon) {
-     if(!iMuon->isGlobalMuon() || !iMuon->isTrackerMuon()) continue;
-     if(iMuon->pt()<7) continue;
-     
-     nMuons7++;
-     //cout<<"Muon"<<endl;
-   }
+   UInt_t nMuons=0;
 
-   hists->fill1DHist(muons->size(),"nMuons","Number of muons", 5,0,5,  1, "");
-   hists->fill1DHist(nMuons7,"nMuons7","Number of muons with pt>7", 5,0,5,  1, "");
+   for ( vector<TLorentzVector>::iterator it = leptons.begin(); it != leptons.end(); ++it)
+     {
+       Handle<vector<reco::Muon> > muons;
+       iEvent.getByLabel("muons", muons);
+       
+       Float_t dRmin  = 999999;
+       //Float_t dPtmin = 999999; 
 
+       reco::TrackRef matchedTrackMuon;
+
+       for (vector<reco::Muon>::const_iterator iMuon = muons->begin(); iMuon != muons->end(); ++iMuon) {
+
+         Float_t dR = deltaR(it->Eta(), it->Phi(), iMuon->eta(), iMuon->phi());
+         
+         if (dR<dRmin){
+           if(!iMuon->innerTrack().isNull()){
+             reco::TrackRef t = iMuon->innerTrack();
+             //cout<<"eta = "<<(*t).eta()<<endl;
+             
+             dRmin = dR;
+             matchedTrackMuon = t;
+           }
+           else
+             cout<<"Inner track does not exist"<<endl;
+           
+         }
+       
+
+         //Only fill these histograms once:
+         if (it == leptons.begin()){
+           if(!iMuon->isGlobalMuon() || !iMuon->isTrackerMuon()) continue;
+           if(iMuon->pt()>7) 
+             nMuons7++;
+
+           hists->fill1DHist(muons->size(),"nMuons","Number of muons",      10,0,10,  1, "");
+           hists->fill1DHist(nMuons7,"nMuons7","Number of muons with pt>7", 10,0,10,  1, "");
+           nMuons=muons->size();
+         }
+
+       }
+
+       if (!matchedTrackMuon.isNull()){
+         //We actually found a matched track between two collections
+         Float_t dPt = fabs(it->Pt() - matchedTrackMuon->pt())/it->Pt();
+         higgsTracks.push_back(*matchedTrackMuon);
+         
+         cout<<"Matched Muon:\n"
+             <<"\t pt = "<<matchedTrackMuon->pt()<<"    eta = "<<matchedTrackMuon->eta()
+             <<"\t dR = "<<dRmin<<"    delat-pt/pt = "<<dPt<<endl;
+
+         hists->fill1DHist(dRmin,"mu_dRmin","#Delta R_{min} between an AOD muon and analysis muon", 50, 0,0.02,  1, "");
+         hists->fill1DHist(dPt,"mu_dPt","#Delta p_{T}/p_{T} between an AOD muon and analysis muon", 50, 0,0.40,  1, "");
+
+       }
+
+     }
+   
+
+
+   Handle<reco::TrackCollection> generalTracks;
+   iEvent.getByLabel("generalTracks", generalTracks);
+
+   edm::ESHandle<TransientTrackBuilder> theB;
+   iSetup.get<TransientTrackRecord>().get("TransientTrackBuilder",theB);
+
+   //cout <<" Got a "<<typeid(*theB).name()<<endl;
+   //cout << "Field at origin (in Testla): "<< (*theB).field()->inTesla(GlobalPoint(0.,0.,0.))<<endl;
+
+   vector<TransientTrack> t_tks;
+   //= (*theB).build(generalTracks);
+
+
+   for (reco::TrackCollection::const_iterator it=higgsTracks.begin(); it!=higgsTracks.end(); it++)
+     {
+       cout<<" Higgs track pt = "<<it->pt()<<endl;
+       TransientTrack tt = (*theB).build(*it);
+
+       t_tks.push_back(tt);
+     }
+   
+   UInt_t nTracks05 = 0;
+   for (reco::TrackCollection::const_iterator it=generalTracks->begin(); it!=generalTracks->end(); it++)
+     {
+       if(it->pt()>0.5)
+         nTracks05++;
+     }
+         
+   //hists->fill1DHist(generalTracks.size(),"nTracks","Number of general tracks", 15,0,15,  1, "");
+   hists->fill1DHist(nTracks05,"nTracks05","Number of tracks with pt>0.5", 15,0,15,  1, "");
+
+
+
+   //*******************************************
+   //******  Electrons **************************
+   //*******************************************
    Handle<reco::ConversionCollection> hConversions;
    iEvent.getByLabel("allConversions", hConversions);
 
@@ -172,12 +306,12 @@ void LifeTime::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
      nElectrons7++;
    }
 
-   hists->fill1DHist(electrons->size(),"nElectrons","Number of electrons", 5,0,5,  1, "");
    hists->fill1DHist(nElectrons7,"nElectrons7","Number of electrons with pt>7", 5,0,5,  1, "");
+   hists->fill1DHist(electrons->size(),"nElectrons","Number of electrons", 5,0,5,  1, "");
 
    UInt_t  nLeptons7 = nMuons7+nElectrons7;
-   hists->fill1DHist(electrons->size() + muons->size(),"nLeptons","Number of leptons", 5,0,5,  1, "");
    hists->fill1DHist(nLeptons7,"nLeptons7","Number of leptons with pt>7", 5,0,5,  1, "");
+   hists->fill1DHist(electrons->size() + nMuons,"nLeptons","Number of leptons", 5,0,5,  1, "");
 
 
 }
@@ -190,11 +324,10 @@ void LifeTime::beginJob()
 
 
   //AP. Since I don't want to perform whole HZZ4l analysis, here is a hack.
-  //(Such ass FSR corrections, finding the right leptons, arranging the Z candidates etc)
-  //I took all this information from the Mit's ntuples and dumped in a txt file.
+  //(By analysis I mean: FSR/momentum corrections, finding the right leptons, arranging the Z candidates etc)
+  //I took all this information from the Mit's ntuples and dumped it in a txt file.
   //Here  I read that file and store the objects as a  vector of MyHiggsEvent() class.
-  //I only interested in the run/event number and 4 leptons that I will later match to the ones in my skimmed sample.
-
+  //I only interested in the run/event number and 4 leptons that I will later match to the ones in my skimmed AOD sample.
 
   MyHiggsEvent *hEv = new MyHiggsEvent(); 
   string STRING;
@@ -226,12 +359,23 @@ void LifeTime::beginJob()
             cout<<"  !!! !!!Something crazy!!  --->> "<<x[t]<<endl;
           
         }
+      if (x[6]=="11" && x[10]=="11" &&x[14]=="11" &&x[18]=="11")
+        hEv->SetType(0);  //4e channel is 0, for consistency with Mit framework
+      else if (x[6]=="13" && x[10]=="13" &&x[14]=="13" &&x[18]=="13")
+        hEv->SetType(1); //4mu channel is 1
+      else if ((x[6]=="11" && x[10]=="11" &&x[14]=="13" &&x[18]=="13") || (x[6]=="13" && x[10]=="13" &&x[14]=="11" &&x[18]=="11"))
+        hEv->SetType(2); //2e2mu channel is 2
+      else
+        { 
+          hEv->SetType(3);
+          cout<<" WARNING   The process type is undefined!! "<<endl;
+        }
       hEv->SetLep1(l[0]);
       hEv->SetLep2(l[1]);
       hEv->SetLep3(l[2]);
       hEv->SetLep4(l[3]);
 
-      cout<<hEv->run()<<endl;
+      //cout<<hEv->run()<<endl;
       HiggsEvents.push_back(*hEv);
     }
 
