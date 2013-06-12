@@ -17,7 +17,7 @@ process.source = cms.Source("PoolSource",
     # replace 'myfile.root' with the source file you want to use
     fileNames = cms.untracked.vstring(
 
-        'file:all.root'
+        'file:all_jul06.root'
     )
 )
 

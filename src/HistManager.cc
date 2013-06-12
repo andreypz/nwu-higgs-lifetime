@@ -26,7 +26,7 @@ void HistManager::writeHists(TFile* myFile){
     (*mapit3).second->Write();
   }
   myFile->cd();
-  myFile->Close();
+  //myFile->Close(); //Don't close it! It should be taken care of outside of this plugin!
   
 }
 

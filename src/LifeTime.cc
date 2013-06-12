@@ -13,7 +13,7 @@
 //
 // Original Author:  Andrey Pozdnyakov
 //         Created:  Thu Apr 11 14:54:41 CDT 2013
-// $Id: LifeTime.cc,v 1.1 2013/05/20 20:27:39 andrey Exp $
+// $Id: LifeTime.cc,v 1.2 2013/05/31 23:45:36 andrey Exp $
 //
 //
 
@@ -50,43 +50,64 @@
 #include "TrackingTools/Records/interface/TransientTrackRecord.h"
 
 #include "Geometry/Records/interface/GlobalTrackingGeometryRecord.h"
+#include "RecoVertex/VertexPrimitives/interface/TransientVertex.h"
+#include "RecoVertex/KalmanVertexFit/interface/KalmanVertexFitter.h"
 
+#include "DataFormats/VertexReco/interface/Vertex.h"
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
+#include "RecoVertex/VertexTools/interface/VertexDistance3D.h"
+
+//#include "CommonTools/UtilAlgos/interface/TFileService.h"
+#include "TTree.h"
 #include "MyHiggsEvent.h"
 #include "HistManager.h"
 
+typedef reco::Vertex::trackRef_iterator trackit_t;
 
 using namespace std;
 using namespace edm;
-using namespace reco;
+//using namespace reco;
+
+
+UInt_t nEvents[] = {0,0,0};
 
 class LifeTime : public edm::EDAnalyzer {
-   public:
-      explicit LifeTime(const edm::ParameterSet&);
-      ~LifeTime();
-
-      static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
-
-
-   private:
-      virtual void beginJob() ;
-      virtual void analyze(const edm::Event&, const edm::EventSetup&);
-      virtual void endJob() ;
-
-      virtual void beginRun(edm::Run const&, edm::EventSetup const&);
-      virtual void endRun(edm::Run const&, edm::EventSetup const&);
-      virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
-      virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
-
-      // ----------member data ---------------------------
-
-
+public:
+  explicit LifeTime(const edm::ParameterSet&);
+  ~LifeTime();
+  
+  static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
+  
+  
+private:
+  virtual void beginJob() ;
+  virtual void analyze(const edm::Event&, const edm::EventSetup&);
+  virtual void endJob() ;
+  
+  virtual void beginRun(edm::Run const&, edm::EventSetup const&);
+  virtual void endRun(edm::Run const&, edm::EventSetup const&);
+  virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
+  virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
+  
+  // ----------member data ---------------------------
+  
+  //edm::Service<TFileService> fs;
+  
+  
   vector<unsigned> runv,evtv; // for removing duplicate events
-
-
+  
+  
   vector<MyHiggsEvent> HiggsEvents;
-
+  
   HistManager *hists;
   TFile *outFile;
+  TTree *fTree;
+
+  Float_t m4l;
+  Float_t vtx_dist_1, vtx_dist_err_1, vtx_chi2_1;
+  Float_t vtx_dist_2, vtx_dist_err_2, vtx_chi2_2;
+  Float_t vtx_dist_3, vtx_dist_err_3, vtx_chi2_3;
+  UInt_t type;
 
 };
 
@@ -107,8 +128,7 @@ std::vector<std::string> split(const std::string &s, char delim) {
 }
 
 LifeTime::LifeTime(const edm::ParameterSet& iConfig)
-{
-}
+{}
 
 
 LifeTime::~LifeTime()
@@ -120,7 +140,6 @@ LifeTime::~LifeTime()
 
 void LifeTime::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
-   using namespace edm;
    
    //cout<<"event"<<endl;
 
@@ -151,12 +170,8 @@ void LifeTime::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
      }
    }
 
-   //hists->fill1DHist(1,"run","run", 3,0,3,  1, "");
+   //Loop over all events from a list and find which one we're dealing with
 
-
-   //Loop over all events from a list and fing which one we're dealing with
-
-   //Int_t type = 0;
    Bool_t notFound = kTRUE;
    MyHiggsEvent e;
    for (vector<MyHiggsEvent>::iterator it = HiggsEvents.begin() ; it != HiggsEvents.end(); ++it)
@@ -174,9 +189,10 @@ void LifeTime::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
      cout<<" DANGER  DANGER. THE EVENT is Not found in the list!!! "<<endl;
 
 
-   if (e.type()!=1) //Only doinf 4mu events for now!
-     return;
-
+   type = e.type();
+   //if (type!=1) //Only doinf 4mu events for now!
+   //return;
+   ++nEvents[type];
    vector<TLorentzVector> leptons;
 
    leptons.push_back(e.lep1());
@@ -192,23 +208,77 @@ void LifeTime::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
    //cout<<"Leptons!  l1pt = "<<leptons[0].Pt()<<endl;
 
+   m4l = (e.lep1()+e.lep2()+e.lep3()+e.lep4()).M();
+
+   if (m4l<70 || m4l>170)
+     throw cms::Exception("\t\t This can not BE..  M4l is outside of range. ")<<m4l<<endl;
 
    //Here we will store 4 tracks of the particles from H->4l decay; both from muons and electrons  
    reco::TrackCollection  higgsTracks;  
 
-   UInt_t nMuons7=0;
-   UInt_t nMuons=0;
+   //UInt_t nMuons7=0;
+   //UInt_t nMuons=0;
 
    for ( vector<TLorentzVector>::iterator it = leptons.begin(); it != leptons.end(); ++it)
      {
-       Handle<vector<reco::Muon> > muons;
-       iEvent.getByLabel("muons", muons);
+       //Handle<vector<reco::Muon> > muons;
+       //iEvent.getByLabel("muons", muons);
        
        Float_t dRmin  = 999999;
-       //Float_t dPtmin = 999999; 
+       reco::Track matchedTrack;
 
-       reco::TrackRef matchedTrackMuon;
+       // --------  Looking at general tracks collection ------
+   
+       Handle<reco::TrackCollection> generalTracks;
+       iEvent.getByLabel("generalTracks", generalTracks);
+   
+       UInt_t nTracks05 = 0;
+       UInt_t nTracks1  = 0;
+       for (reco::TrackCollection::const_iterator tk=generalTracks->begin(); tk!=generalTracks->end(); tk++)
+         {
+           if(tk->pt()>0.5)
+             nTracks05++;
+           if(tk->pt()>1.0)
+             nTracks1++;
 
+           Float_t dR = deltaR(it->Eta(), it->Phi(), tk->eta(), tk->phi());
+         
+           if (dR<dRmin){
+             dRmin = dR;
+             matchedTrack = *tk;
+           }           
+         } //end of loop over general tracks
+
+
+       if (matchedTrack.quality(reco::TrackBase::loose)){
+         //We actually found a matched track between two collections
+         Float_t dPt = fabs(it->Pt() - matchedTrack.pt())/it->Pt();
+         higgsTracks.push_back(matchedTrack);
+         
+         cout<<"Matched Track:\n"
+             <<"\t pt = "<<matchedTrack.pt()<<"    eta = "<<matchedTrack.eta()
+             <<"\t dR = "<<dRmin<<"    delat-pt/pt = "<<dPt<<endl;
+         
+         hists->fill1DHist(dRmin,"tr_dRmin","#Delta R_{min} between an AOD track and analysis lepton", 50, 0,0.02,  1, "");
+         hists->fill1DHist(dPt,"tr_dPt","#Delta p_{T}/p_{T} between an AOD track and analysis lepton", 50, 0,0.40,  1, "");
+       }
+       else
+         throw cms::Exception("Track quality is not OKey!");
+         
+       //Only fill these histograms once per leptons loop:
+       if (it == leptons.begin()){
+         hists->fill1DHist(generalTracks->size(),"nTracks","Number of general tracks", 50,0,1000,  1, "");
+         hists->fill1DHist(nTracks05,"nTracks05","Number of tracks with pt>0.5", 50,0,1000,  1, "");
+         hists->fill1DHist(nTracks1,"nTracks1","Number of tracks with pt>1", 50,0,1000,  1, "");
+         
+         //cout<<" \t\t\t  number of general tracks = "<<generalTracks->size()<<endl;
+       }
+
+
+
+
+
+       /*
        for (vector<reco::Muon>::const_iterator iMuon = muons->begin(); iMuon != muons->end(); ++iMuon) {
 
          Float_t dR = deltaR(it->Eta(), it->Phi(), iMuon->eta(), iMuon->phi());
@@ -226,7 +296,6 @@ void LifeTime::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
            
          }
        
-
          //Only fill these histograms once:
          if (it == leptons.begin()){
            if(!iMuon->isGlobalMuon() || !iMuon->isTrackerMuon()) continue;
@@ -253,50 +322,181 @@ void LifeTime::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
          hists->fill1DHist(dPt,"mu_dPt","#Delta p_{T}/p_{T} between an AOD muon and analysis muon", 50, 0,0.40,  1, "");
 
        }
+       */
 
-     }
+     } //end of loop over 4-leptons
    
 
 
-   Handle<reco::TrackCollection> generalTracks;
-   iEvent.getByLabel("generalTracks", generalTracks);
-
+   //------------------------------------------------------------------------------
+   //****** Creating Transient Tracks that will be used for vertex re-fitting *****
+   // ----------------------------------------------------------------------------
    edm::ESHandle<TransientTrackBuilder> theB;
    iSetup.get<TransientTrackRecord>().get("TransientTrackBuilder",theB);
 
    //cout <<" Got a "<<typeid(*theB).name()<<endl;
    //cout << "Field at origin (in Testla): "<< (*theB).field()->inTesla(GlobalPoint(0.,0.,0.))<<endl;
 
-   vector<TransientTrack> t_tks;
-   //= (*theB).build(generalTracks);
-
+   vector<reco::TransientTrack> t_tks_h, t_tks_v;  //transient tracks for higgs (4 tracks) and the rest of the tracks comming from the same PV.
 
    for (reco::TrackCollection::const_iterator it=higgsTracks.begin(); it!=higgsTracks.end(); it++)
      {
-       cout<<" Higgs track pt = "<<it->pt()<<endl;
-       TransientTrack tt = (*theB).build(*it);
+       //cout<<" Higgs track pt = "<<it->pt()<<endl;
+       reco::TransientTrack tt = (*theB).build(*it);
+       t_tks_h.push_back(tt);
+     }
 
-       t_tks.push_back(tt);
-     }
+
+   //----------------------------------------------------
+   // ------ Now make a new vertex out of 4 tracks ----------------
+   KalmanVertexFitter fitter;
+   TransientVertex higgsVertex = fitter.vertex(t_tks_h);
+   //cout<<"   NEW vertex fit.  x= "<<higgsVertex.position().x()<<endl;
+   //--------------------------------------------------------------
+
    
-   UInt_t nTracks05 = 0;
-   for (reco::TrackCollection::const_iterator it=generalTracks->begin(); it!=generalTracks->end(); it++)
-     {
-       if(it->pt()>0.5)
-         nTracks05++;
+   //Looping over primary verteces collection
+
+   Handle<reco::VertexCollection> primaryVtcs;
+   iEvent.getByLabel("offlinePrimaryVertices", primaryVtcs);
+
+   reco::Vertex PV;
+   UInt_t vtxCount=0;
+   for(reco::VertexCollection::const_iterator iVtx = primaryVtcs->begin(); iVtx!= primaryVtcs->end(); ++iVtx){
+     //if(!iVtx->isValid() || iVtx->isFake()) continue;
+ 
+     hists->fill1DHist(iVtx->x(),"vtx_x","Primary Verteces X", 50,-0.5,0.5,  1, "");
+     hists->fill1DHist(iVtx->y(),"vtx_y","Primary Verteces Y", 50,-0.5,0.5,  1, "");
+     hists->fill1DHist(iVtx->z(),"vtx_z","Primary Verteces Z", 50,-24,24,    1, "");
+
+     hists->fill1DHist(iVtx->ndof(),"vtx_ndof","Primary Verteces ndof", 50,0,100,  1, "");
+     hists->fill1DHist(iVtx->nTracks(),"vtx_ntracks","Primary Verteces nTracks", 30,0,30,  1, "");
+  
+     UInt_t matched=0;        
+     for(trackit_t tv=iVtx->tracks_begin(); tv!=iVtx->tracks_end(); tv++)
+       {
+         const reco::Track & recoTrack=*(tv->get());
+         bool isMatched = false;
+           
+         //Loop over 4 higgs Tracks and find the matching.
+         //There must be a better way to do that using Track Refs, but it's too hard for me to figure out.
+         for (reco::TrackCollection::const_iterator it=higgsTracks.begin(); it!=higgsTracks.end(); it++)
+           {
+             Float_t dR  = deltaR(it->eta(), it->phi(), recoTrack.eta(), recoTrack.phi());
+             Float_t dPt = fabs(it->pt() - recoTrack.pt())/it->pt();
+               
+             //if (dR<0.01 && dPt<0.1) //good enough??
+             if (dR<0.01) 
+               isMatched = true;
+           }
+
+         if (isMatched)
+           matched++;
+       }
+     
+     if(matched>=3){
+       cout<<"\t\t\t GOOD GOOD   At least two tracks are matched with 1st PV,   - "<<matched<<endl;
+       PV = *iVtx;
+       break;
      }
+     else if (matched>0)
+       cout<<"VTX "<<vtxCount<<"\t\t  it's not empty!!"<<matched<<endl;
+     
+     ++vtxCount;
+   }
+   if (!PV.isValid()) //there are event where the vertex is not found, investigate it later
+     PV = *primaryVtcs->begin();
+     //return; 
+   //throw cms::Exception("PV is not valid") ;
+
+
+   hists->fill1DHist(primaryVtcs->size(),"nVtx","Number of primary verteces", 30,0,30,  1, "");
+   hists->fill1DHist(vtxCount,"vtx_number","Vertex index wich has > 3 out of 4 tracks", 10,0,10,  1, "");
+
+
+   //The first primary vertex is usually the one picked for further analysis. 
+   
+   hists->fill1DHist(PV.ndof(),"vtx1_ndof","Primary Verteces ndof", 50,0,100,  1, "");
+   hists->fill1DHist(PV.nTracks(),"vtx1_ntracks","Primary Verteces nTracks", 50,0,100,  1, "");
+
+
+   //Get tracks from a PV:
+   for(trackit_t tv=PV.tracks_begin(); tv!=PV.tracks_end(); tv++)
+     {
+       const reco::Track & recoTrack=*(tv->get());
+       bool isMatched = false;
+       
+       for (reco::TrackCollection::const_iterator it=higgsTracks.begin(); it!=higgsTracks.end(); it++)
+         {
+           Float_t dR  = deltaR(it->eta(), it->phi(), recoTrack.eta(), recoTrack.phi());
+           Float_t dPt = fabs(it->pt() - recoTrack.pt())/it->pt();
+           
+           if (dR<0.01)
+             isMatched = true;
+         }
+
+       if (!isMatched){
+         // All the rest of the tracks put in the transient tracks collection for the future vertex re-fitting.
+         reco::TransientTrack tt = (*theB).build(recoTrack);
+         t_tks_v.push_back(tt);
+       }
          
-   //hists->fill1DHist(generalTracks.size(),"nTracks","Number of general tracks", 15,0,15,  1, "");
-   hists->fill1DHist(nTracks05,"nTracks05","Number of tracks with pt>0.5", 15,0,15,  1, "");
+     }
+
+
+  
+
+
+   //********* Distances ************//
+   //First, let's figure out the distance between the original PV and re-fitted Higgs vertex
+
+   VertexDistance3D vertTool;
+   Float_t distance = vertTool.distance(higgsVertex,  *primaryVtcs->begin() ).value();
+   Float_t dist_err = vertTool.distance(higgsVertex,  *primaryVtcs->begin()).error();
+   Float_t chi2     = vertTool.compatibility(higgsVertex,  *primaryVtcs->begin());
+   
+   vtx_dist_1     = distance;
+   vtx_dist_err_1 = dist_err;
+   vtx_chi2_1     = chi2;
+   hists->fill1DHist(distance,"vtx_dist_1",    "The distance between Higgs vertex and original PV",       50,0,0.03,  1, "");
+   hists->fill1DHist(dist_err,"vtx_dist_err_1","The distance error between Higgs vertex and original PV", 50,0,0.03,  1, "");
+   hists->fill1DHist(chi2,    "vtx_chi2_1",    "The distance chi2between Higgs vertex and original PV",   50,0,5.0,   1, "");
+   
+   
+   TransientVertex intVertex = fitter.vertex(t_tks_v);  //interaction vertex
+   distance = vertTool.distance(higgsVertex, intVertex ).value();
+   dist_err = vertTool.distance(higgsVertex, intVertex).error();
+   chi2     = vertTool.compatibility(higgsVertex, intVertex);
+
+   vtx_dist_2     = distance;
+   vtx_dist_err_2 = dist_err;
+   vtx_chi2_2     = chi2;
+   hists->fill1DHist(distance,"vtx_dist_2",    "The distance between Higgs vertex and re-fitted PV",       50,0,0.03,  1, "");
+   hists->fill1DHist(dist_err,"vtx_dist_err_2","The distance error between Higgs vertex and re-fitted PV", 50,0,0.03,  1, "");
+   hists->fill1DHist(chi2,    "vtx_chi2_2",    "The distance chi2between Higgs vertex and re-fitted PV",   50,0,5.0,   1, "");
+
+
+   distance = vertTool.distance(*primaryVtcs->begin(), intVertex ).value();
+   dist_err = vertTool.distance(*primaryVtcs->begin(), intVertex).error();
+   chi2     = vertTool.compatibility(*primaryVtcs->begin(), intVertex);
+
+   vtx_dist_3     = distance;
+   vtx_dist_err_3 = dist_err;
+   vtx_chi2_3     = chi2;
+
+   fTree->Fill();
+
+
 
 
 
    //*******************************************
    //******  Electrons **************************
    //*******************************************
-   Handle<reco::ConversionCollection> hConversions;
-   iEvent.getByLabel("allConversions", hConversions);
+   //Handle<reco::ConversionCollection> hConversions;
+   //iEvent.getByLabel("allConversions", hConversions);
 
+   /*
    UInt_t nElectrons7 = 0;
    Handle<reco::GsfElectronCollection > electrons;
    iEvent.getByLabel("gsfElectrons", electrons);
@@ -313,6 +513,7 @@ void LifeTime::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    hists->fill1DHist(nLeptons7,"nLeptons7","Number of leptons with pt>7", 5,0,5,  1, "");
    hists->fill1DHist(electrons->size() + nMuons,"nLeptons","Number of leptons", 5,0,5,  1, "");
 
+   */
 
 }
 
@@ -322,6 +523,20 @@ void LifeTime::beginJob()
   hists   = new HistManager(outFile);
   outFile->cd();
 
+  fTree = new TTree("fTree","Small tree");
+  fTree->Branch("vtx_dist_1", &vtx_dist_1,"vtx_dist_1/F");
+  fTree->Branch("vtx_dist_2", &vtx_dist_2,"vtx_dist_2/F");
+  fTree->Branch("vtx_dist_3", &vtx_dist_3,"vtx_dist_3/F");
+  fTree->Branch("m4l", &m4l,"m4l/F");
+  fTree->Branch("vtx_dist_err_1", &vtx_dist_err_1,"vtx_dist_err_1/F");
+  fTree->Branch("vtx_dist_err_2", &vtx_dist_err_2,"vtx_dist_err_2/F");
+  fTree->Branch("vtx_dist_err_3", &vtx_dist_err_3,"vtx_dist_err_3/F");
+  fTree->Branch("vtx_chi2_1", &vtx_chi2_1,"vtx_chi2_1/F");
+  fTree->Branch("vtx_chi2_2", &vtx_chi2_2,"vtx_chi2_2/F");
+  fTree->Branch("vtx_chi2_3", &vtx_chi2_3,"vtx_chi2_3/F");
+  fTree->Branch("type", &type,"type/i");
+  //fTree->Branch("", ,"");
+    
 
   //AP. Since I don't want to perform whole HZZ4l analysis, here is a hack.
   //(By analysis I mean: FSR/momentum corrections, finding the right leptons, arranging the Z candidates etc)
@@ -387,9 +602,17 @@ void LifeTime::beginJob()
 
 void LifeTime::endJob() 
 {
+  cout<<"Events counts"
+      <<"\n type 0   -  "<<nEvents[0]
+      <<"\n type 1   -  "<<nEvents[1]
+      <<"\n type 2   -  "<<nEvents[2]
+      <<"\n total    -  "<<nEvents[0]+nEvents[1]+nEvents[2]<<endl;
+    
+
   outFile->cd();
   hists->writeHists(outFile);
-  //outFile->Write();
+  //fTree->Write(outFile);
+  outFile->Write();
   outFile->Close();
 }
 

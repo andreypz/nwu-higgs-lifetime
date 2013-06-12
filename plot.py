@@ -17,7 +17,8 @@ def makeHTML(htmlDir):
 
     print "\n\n ******** Now making HTML pages ******** \n"
     menu=""
-    plot_types = ["4mu","4e"]
+    plot_types = ["comb","4mu","4e"]
+    IFRAMEA = "comb"
 
     fileList = {}
     for x in plot_types:
@@ -65,6 +66,7 @@ def makeHTML(htmlDir):
     whole_thing = whole_thing.replace("{MENU}", menu)
     whole_thing = whole_thing.replace("{DATE}", str(today))
     whole_thing = whole_thing.replace("{ASIDEMESSAGE}", str(message))
+    whole_thing = whole_thing.replace("{IFRAMEA}", IFRAMEA)
     tempfile.close()
 
 
@@ -133,8 +135,9 @@ def simpleHist(plotname, hname, path, f1):
 
     h = f1.Get(hname)
     h.Draw()
-    c1.SaveAs(path+hname+"_"+plotname+".png")
-    
+    c1.SaveAs(path+plotname+"_"+hname+".png")
+
+
 
 if __name__ == "__main__":
     #gROOT.ProcessLine(".L     ~/Dropbox/tdrstyle.C")
@@ -143,17 +146,60 @@ if __name__ == "__main__":
 
     f1 = TFile("output.root","open")
 
+    t = f1.Get("fTree")
     f1.Print()
-    path = imgpath+"4mu/"
+    path = imgpath+"comb/"
     if not os.path.exists(path):
         os.makedirs(path)
 
-    simpleHist("mu_01","nMuons",   path,f1)
-    simpleHist("mu_02","nMuons7",  path,f1)
-    simpleHist("mu_03","mu_dRmin", path,f1)
-    simpleHist("mu_04","mu_dPt",   path,f1)
+    pre = "tk"
 
-    simpleHist("tr_","nTracks",   path,f1)
+    t.Draw("m4l>>h(20,110,170)","","")
+    c1.SaveAs(path+pre+"_01_m4l.png")
+
+    t.Draw("vtx_dist_1>>h(30,0,0.03)","","")
+    c1.SaveAs(path+pre+"_02_dist1.png")
+    t.Draw("vtx_dist_2>>h(30,0,0.03)","","")
+    c1.SaveAs(path+pre+"_03_dist2.png")
+    t.Draw("vtx_dist_3>>h(30,0,0.03)","","")
+    c1.SaveAs(path+pre+"_04_dist3.png")
+
+    simpleHist(pre+"_04","tr_dRmin", path,f1)
+    simpleHist(pre+"_05","tr_dPt",   path,f1)
+
+    #simpleHist("tr_","nTracks",   path,f1)
+
+
+    path = imgpath+"4mu/"
+    if not os.path.exists(path):
+        os.makedirs(path)
+        
+    pre = "mu"
+    t.Draw("m4l>>h(20,110,170)","type==1","")
+    c1.SaveAs(path+pre+"_01_m4l.png")
+
+    t.Draw("vtx_dist_1>>h(30,0,0.03)","type==1","")
+    c1.SaveAs(path+pre+"_02_dist1.png")
+    t.Draw("vtx_dist_2>>h(30,0,0.03)","type==1","")
+    c1.SaveAs(path+pre+"_03_dist2.png")
+    t.Draw("vtx_dist_3>>h(30,0,0.03)","type==1","")
+    c1.SaveAs(path+pre+"_04_dist3.png")
+
+
+    path = imgpath+"4e/"
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    pre = "el"
+    t.Draw("m4l>>h(20,110,170)","type==0","")
+    c1.SaveAs(path+pre+"_01_m4l.png")
+    t.Draw("vtx_dist_1>>h(30,0,0.03)","type==0","")
+    c1.SaveAs(path+pre+"_02_dist1.png")
+    t.Draw("vtx_dist_2>>h(30,0,0.03)","type==0","")
+    c1.SaveAs(path+pre+"_03_dist2.png")
+    t.Draw("vtx_dist_3>>h(30,0,0.03)","type==0","")
+    c1.SaveAs(path+pre+"_04_dist3.png")
 
     makeHTML(imgpath)
     
+
