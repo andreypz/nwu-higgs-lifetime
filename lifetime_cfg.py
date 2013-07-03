@@ -9,7 +9,7 @@ process.load("TrackingTools/TransientTrack/TransientTrackBuilder_cfi")
 process.load("Configuration.Geometry.GeometryIdeal_cff")
 process.load("Configuration.StandardSequences.MagneticField_cff")
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
-process.GlobalTag.globaltag = 'GR_P_V42_AN3::All'    
+process.GlobalTag.globaltag = 'GR_R_53_V21::All'    
 
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
 

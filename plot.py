@@ -17,7 +17,7 @@ def makeHTML(htmlDir):
 
     print "\n\n ******** Now making HTML pages ******** \n"
     menu=""
-    plot_types = ["comb","4mu","4e"]
+    plot_types = ["comb","h_dist1","h_dist2","h_dist3","fit","4mu","4e"]
     IFRAMEA = "comb"
 
     fileList = {}
@@ -154,35 +154,142 @@ if __name__ == "__main__":
 
     pre = "tk"
 
-    t.Draw("m4l>>h(20,110,170)","","")
+    t.Draw("m4l>>h(20,70,170)","","")
     c1.SaveAs(path+pre+"_01_m4l.png")
-
+    t.Draw("m4l>>h(20,110,170)","","")
+    c1.SaveAs(path+pre+"_02_m4l.png")
     t.Draw("vtx_dist_1>>h(30,0,0.03)","","")
-    c1.SaveAs(path+pre+"_02_dist1.png")
+    c1.SaveAs(path+pre+"_03_dist1.png")
+    c1.SetLogy()
+    c1.SaveAs(path+pre+"_04_dist1_log.png")
+    c1.SetLogy(0)
     t.Draw("vtx_dist_2>>h(30,0,0.03)","","")
-    c1.SaveAs(path+pre+"_03_dist2.png")
+    c1.SaveAs(path+pre+"_05_dist2.png")
+    c1.SetLogy()
+    c1.SaveAs(path+pre+"_06_dist2_log.png")
+    c1.SetLogy(0)
     t.Draw("vtx_dist_3>>h(30,0,0.03)","","")
-    c1.SaveAs(path+pre+"_04_dist3.png")
+    c1.SaveAs(path+pre+"_07_dist3.png")
+    c1.SetLogy()
+    c1.SaveAs(path+pre+"_08_dist3_log.png")
+    c1.SetLogy(0)
 
-    simpleHist(pre+"_04","tr_dRmin", path,f1)
-    simpleHist(pre+"_05","tr_dPt",   path,f1)
+    simpleHist(pre+"_11","tr_dRmin", path,f1)
+    simpleHist(pre+"_12","tr_dPt",   path,f1)
 
     #simpleHist("tr_","nTracks",   path,f1)
 
 
+    xmax = "0.05"
+    xmin = "-0.05"
+    for dist in ["1","2","3"]:
+        path = imgpath+"h_dist"+dist+"/"
+        if not os.path.exists(path):
+            os.makedirs(path)
+        pre = "h"
+
+        xmax = "0.05"
+        xmin = "-0.05"
+    
+        t.Draw("vtx_dist_"+dist+">>h(20,0,"+xmax+")","m4l>120&&m4l<130","")
+        c1.SetLogy(0)
+        c1.SaveAs(path+pre+"_01_dist"+dist+".png")
+        c1.SetLogy()
+        c1.SaveAs(path+pre+"_02_dist"+dist+"_log.png")
+        h.Clear()
+
+        if dist=="2":
+            t.Draw("ct>>h2(20,"+xmin+","+xmax+")","m4l>120&&m4l<130","")
+            c1.SetLogy(0)
+            c1.SaveAs(path+pre+"_03_ct.png")
+            c1.SetLogy()
+            c1.SaveAs(path+pre+"_04_ct_log.png")
+
+
+        pre = "non-h"
+        t.Draw("vtx_dist_"+dist+">>nh(20,0,"+xmax+")","m4l<120||m4l>130","")
+        c1.SetLogy(0)
+        c1.SaveAs(path+pre+"_01_dist"+dist+".png")
+        c1.SetLogy()
+        c1.SaveAs(path+pre+"_02_dist"+dist+"_log.png")
+
+        if dist=="2":
+            t.Draw("ct>>h(20,"+xmin+","+xmax+")","m4l<120||m4l>130","")
+            c1.SetLogy(0)
+            c1.SaveAs(path+pre+"_03_ct.png")
+            c1.SetLogy()
+            c1.SaveAs(path+pre+"_04_ct_log.png")
+        
+
+        pre="z"
+        t.Draw("vtx_dist_"+dist+">>z(20,0,"+xmax+")","m4l<105","")
+        c1.SetLogy(0)
+        c1.SaveAs(path+pre+"_01_dist"+dist+".png")
+        c1.SetLogy()
+        c1.SaveAs(path+pre+"_02_dist"+dist+"_log.png")
+        z.Clear()
+
+        if dist=="2":
+            t.Draw("ct>>z(20,"+xmin+","+xmax+")","m4l<105","")
+            c1.SetLogy(0)
+            c1.SaveAs(path+pre+"_03_ct.png")
+            c1.SetLogy()
+            c1.SaveAs(path+pre+"_04_ct_log.png")
+            z.Clear()
+
+
+
+
+    path = imgpath+"fit/"
+    if not os.path.exists(path):
+        os.makedirs(path)
+        pre="fit"
+
+
+    myfit1 = TF1("myfit1","gaus", -0.03, 0.03);
+    myfit2 = TF1("myfit2","[0]*exp(-0.5*((x-[1])/[2])**2)", -0.03, 0.03);
+    myfit2.SetLineColor(kGreen+2)
+    exp = TF1("exp","10*exp(-x/0.01)", 0.,0.03)
+    exp.SetLineColor(kGreen+2)
+    c1.SetLogy(0)
+    
+    t.Draw("ct>>hh(20,"+xmin+","+xmax+")","m4l>120&&m4l<130","")
+    hh.Fit("myfit1", "W")
+    #hh.Fit("myfit2", "W+")
+    exp.Draw("same")
+    c1.SaveAs(path+"hh_fit_ct.png")
+
+    t.Draw("ct>>nnh(20,"+xmin+","+xmax+")","m4l<120||m4l>130","")
+    nnh.Fit("myfit1", "W")
+    c1.SaveAs(path+"nnh_fit_ct.png")
+
+    t.Draw("ct>>zz(20,"+xmin+","+xmax+")","m4l<105","")
+    zz.Fit("myfit1", "W")
+    c1.SaveAs(path+"z_fit_ct.png")
+
+
+
+    t.Draw("ct>>hh(20,"+xmin+","+xmax+")","m4l>120&&m4l<130&&type==1","")
+    c1.SaveAs(path+"hh_ct_4mu.png")
+    t.Draw("ct>>hh(20,"+xmin+","+xmax+")","m4l>120&&m4l<130&&type==0","")
+    c1.SaveAs(path+"hh_ct_4e.png")
+    t.Draw("ct>>hh(20,"+xmin+","+xmax+")","m4l>120&&m4l<130&&type==2","")
+    c1.SaveAs(path+"hh_ct_2e2mu.png")
+
+    
     path = imgpath+"4mu/"
     if not os.path.exists(path):
         os.makedirs(path)
-        
+                
     pre = "mu"
     t.Draw("m4l>>h(20,110,170)","type==1","")
     c1.SaveAs(path+pre+"_01_m4l.png")
 
-    t.Draw("vtx_dist_1>>h(30,0,0.03)","type==1","")
+    t.Draw("vtx_dist_1>>h(30,0,"+xmax+")","type==1","")
     c1.SaveAs(path+pre+"_02_dist1.png")
-    t.Draw("vtx_dist_2>>h(30,0,0.03)","type==1","")
+    t.Draw("vtx_dist_2>>h(30,0,"+xmax+")","type==1","")
     c1.SaveAs(path+pre+"_03_dist2.png")
-    t.Draw("vtx_dist_3>>h(30,0,0.03)","type==1","")
+    t.Draw("vtx_dist_3>>h(30,0,"+xmax+")","type==1","")
     c1.SaveAs(path+pre+"_04_dist3.png")
 
 
@@ -193,13 +300,15 @@ if __name__ == "__main__":
     pre = "el"
     t.Draw("m4l>>h(20,110,170)","type==0","")
     c1.SaveAs(path+pre+"_01_m4l.png")
-    t.Draw("vtx_dist_1>>h(30,0,0.03)","type==0","")
+    t.Draw("vtx_dist_1>>h(30,0,"+xmax+")","type==0","")
     c1.SaveAs(path+pre+"_02_dist1.png")
-    t.Draw("vtx_dist_2>>h(30,0,0.03)","type==0","")
+    t.Draw("vtx_dist_2>>h(30,0,"+xmax+")","type==0","")
     c1.SaveAs(path+pre+"_03_dist2.png")
-    t.Draw("vtx_dist_3>>h(30,0,0.03)","type==0","")
+    t.Draw("vtx_dist_3>>h(30,0,"+xmax+")","type==0","")
     c1.SaveAs(path+pre+"_04_dist3.png")
 
     makeHTML(imgpath)
     
+
+
 
